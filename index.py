@@ -15,36 +15,38 @@ import json
 import PIL
 from PIL import Image
 
+# Server Variables
+modes = {'boil': 100, 'hot':65, 'warm': 35}
+
 # Initialize the Flask application
 application = Flask(__name__)
 
 # Main page of the website
 @application.route("/")
 def index():
-    return "Hello World!"
+    return 'Hello World!'
 
-# Upload GET and POST request for images
-@application.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-    # If it's a POST request, then we are putting something in the DB
-    if request.method == 'POST':
-        # This gets the file from the POST request
-        #f = request.files['the_file']
-        # Sends file to DB and saves in images/ folder
-        #results = fileToDB(f)
-	#return results
-        return
+# Sets the temperature of the water heater
+@application.route('/temperature/<mode>', methods=['GET, POST'])
+def temperature(mode):
     if request.method == 'GET':
-        ### Gets (currently all) paths from DB
-        ### Needs to return actual images!
-	#minRow = request.args.get('minRow')
-	#maxRow = request.args.get('maxRow')
-	#images = None
-	#if minRow is not None and maxRow is not None:
-        #	return filesFromDB(minRow, maxRow)
-	#else:
-	#	return filesFromDB()
-        return
+        temp = 10000
+        return 'The temperature is ' + temp
+    else:
+        if mode in modes:
+                # Do something
+                return 'Setting temperature mode to ' + mode + ' at ' + modes[mode]
+        else:
+                return 'Temperature mode not found: ' + mode
+
+# Sets the time to keep the water heater heated
+@application.route('/heat/<time>', methods=['POST'])
+def heat(time):
+    return 'Keeping heated for ' + time + ' seconds.'
+
+@application.route('/stats', methods=['GET'])
+def stats():
+    return 'Some crazy stats about the kettle that we don\'t have yet.'
 
 # A function to generate 7 random characters
 if __name__ == '__main__':
