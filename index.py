@@ -27,15 +27,15 @@ def index():
     return 'Hello World!'
 
 # Sets the temperature of the water heater
-@application.route('/temperature/<mode>', methods=['GET, POST'])
+@application.route('/temperature/<mode>', methods=['GET', 'POST'])
 def temperature(mode):
     if request.method == 'GET':
         temp = 10000
-        return 'The temperature is ' + temp
+        return 'The temperature is ' + str(temp)
     else:
         if mode in modes:
                 # Do something
-                return 'Setting temperature mode to ' + mode + ' at ' + modes[mode]
+                return 'Setting temperature mode to ' + mode + ' at ' + str(modes[mode])
         else:
                 return 'Temperature mode not found: ' + mode
 
