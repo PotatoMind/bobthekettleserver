@@ -14,24 +14,27 @@ import numpy as np
 import json
 import PIL
 from PIL import Image
+from w1thermsensor import W1ThermSensor
 
 # Server Variables
 modes = {'boil': 100, 'hot':65, 'warm': 35}
-
 # Initialize the Flask application
 application = Flask(__name__)
+# Initialize the temperature sensor object
+sensor = W1ThermSensor()
 
 # Main page of the website
 @application.route("/")
 def index():
-    return 'Hello World!'
+    return "Hello World!"
 
 # Sets the temperature of the water heater
 @application.route('/temperature/<mode>', methods=['GET', 'POST'])
 def temperature(mode):
     if request.method == 'GET':
-        temp = 10000
-        return 'The temperature is ' + str(temp)
+        temperature_in_celsius = sensor.get_temperature()
+        temperature_in_fahrenheit = sensor.get_temperature(W1ThermSensor.DEGREES_F)
+        return 'The temperature is ' + str(temperature_in_fahrenheit)
     else:
         if mode in modes:
                 # Do something
