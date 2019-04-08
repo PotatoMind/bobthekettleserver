@@ -15,6 +15,8 @@ import json
 import PIL
 from PIL import Image
 from w1thermsensor import W1ThermSensor
+import RPi.GPIO as GPIO
+
 
 # Server Variables
 modes = {'boil': 100, 'hot':65, 'warm': 35}
@@ -22,10 +24,25 @@ modes = {'boil': 100, 'hot':65, 'warm': 35}
 application = Flask(__name__)
 # Initialize the temperature sensor object
 sensor = W1ThermSensor()
+# Setup GPIO ports
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(27, GPIO.OUT, initial=GPIO.LOW)
 
 # Main page of the website
-@application.route("/")
-def index():
+@application.route("/<test>")
+def index(test):
+    if test == '1':
+        try:
+            GPIO.output(27, GPIO.HIGH)
+            time.sleep(5)
+        except:
+            print("Some error")
+    else:
+        try:
+            GPIO.output(27, GPIO.LOW)
+            time.sleep(5)
+        except:
+            print("Some error")
     return "Hello World!"
 
 # Sets the temperature of the water heater
