@@ -31,6 +31,7 @@ application = Flask(__name__)
 sensor = W1ThermSensor()
 # Setup GPIO ports
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(27, GPIO.OUT)
 
 lcd_rs = digitalio.DigitalInOut(board.D26)
 lcd_en = digitalio.DigitalInOut(board.D19)
@@ -79,14 +80,21 @@ def stats():
 if __name__ == '__main__':
     application.run(host='0.0.0.0', port=80)
 
+@application.route('/switch/<value>', methods=['GET'])
+def switch(value):
+    if value == 'on':
+        flip_switch(True)
+    elif value == 'off':
+        flip_switch(False)
+    return 'Done did the thing'
 
 def flip_switch(switch):
     if switch:
         try:
             GPIO.output(27, GPIO.HIGH)
             time.sleep(5)
-        except:
-            print("Some error")
+        except e:
+            print(e)
     else:
         try:
             GPIO.output(27, GPIO.LOW)
