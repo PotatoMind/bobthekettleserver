@@ -22,7 +22,7 @@ import adafruit_character_lcd.character_lcd as characterlcd
 import subprocess
 
 # Server Variables
-modes = {'boil': 100, 'hot':65, 'warm': 35}
+modes = {'boil': 90, 'hot': 60, 'warm': 30}
 # Raspberry Pi pin setup
 tmp_sensor = 27
 # Initialize the Flask application
@@ -32,7 +32,6 @@ sensor = W1ThermSensor()
 # Setup GPIO ports
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(27, GPIO.OUT)
-
 lcd_rs = digitalio.DigitalInOut(board.D26)
 lcd_en = digitalio.DigitalInOut(board.D19)
 lcd_d7 = digitalio.DigitalInOut(board.D21)
@@ -57,20 +56,43 @@ def index():
 @application.route('/temperature/<mode>', methods=['GET', 'POST'])
 def temperature(mode):
     if request.method == 'GET':
-        temperature_in_celsius = sensor.get_temperature()
-        temperature_in_fahrenheit = sensor.get_temperature(W1ThermSensor.DEGREES_F)
-        return 'The temperature is ' + str(temperature_in_fahrenheit)
+        json = {
+            "c":  round(sensor.get_temperature(), 2),
+            "f": round(sensor.get_temperature(W1ThermSensor.DEGREES_F), 2),
+            "k": round(sensor.get_temperature(W1ThermSensor.DEGREES_K), 2)
+        }
+        return str(json)
     else:
         if mode in modes:
-                # Do something
-                return 'Setting temperature mode to ' + mode + ' at ' + str(modes[mode])
+                print('Setting temperature mode to ' + mode + ' at ' + str(modes[mode]))
+                temp = modes[mode]
+                if (round(sensor.get_temperature(), 2) < temp):
+                    flip_switch(1)
+                    time.sleep(5)
+                    while (round(sensor.get_temperature(), 2) < temp):
+                        print(round(sensor.get_temperature(), 2))
+                        time.sleep(5)
+                    flip_switch(0)
+                    time.sleep(5)
+                    return 'Done'
+                else:
+                    return 'Already heated'
         else:
                 return 'Temperature mode not found: ' + mode
 
 # Sets the time to keep the water heater heated
 @application.route('/heat/<time>', methods=['POST'])
 def heat(time):
-    return 'Keeping heated for ' + time + ' seconds.'
+    duration = int(time)
+    start_time = time.time()
+    end_time = time.time()
+    flip_switch(1)
+    time.sleep(5)
+    while (end_time - start_time < duration):
+        end_time = time.time()
+    flip_switch(0)
+    time.sleep(5)
+    return 'Done'
 
 @application.route('/stats', methods=['GET'])
 def stats():
