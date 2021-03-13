@@ -1,6 +1,7 @@
 from flask import Flask
 from flask import request
 from flask import send_file
+from flask import g
 import random
 import string
 from werkzeug.utils import secure_filename
@@ -34,7 +35,6 @@ except:
     print("DEAD")
 # Setup GPIO ports
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(27, GPIO.OUT)
 lcd_rs = digitalio.DigitalInOut(board.D26)
 lcd_en = digitalio.DigitalInOut(board.D19)
 lcd_d7 = digitalio.DigitalInOut(board.D21)
@@ -51,36 +51,23 @@ o, e = proc.communicate()
 lcd.message = o.decode('ascii') + '\nPort: 5000'
 
 # DB Helper Functions
-def create_connection(db_file):
+def create_connection():
     """ create a database connection to the SQLite database
         specified by db_file
     :param db_file: database file
     :return: Connection object or None
     """
     try:
-        conn = sqlite3.connect(db_file)
+        conn = sqlite3.connect('/home/pi/Desktop/bobthekettleserver/server.db')
         return conn
     except Error as e:
         print(e)
  
     return None
-
-def create_db():
-    # sqlite db
-    conn = create_connection('server.db')
-    c = conn.cursor()
-
-    # Create table
-    c.execute('''CREATE TABLE IF NOT EXISTS log
-                 (datetime, command, device, response)''')
-    # Save (commit) the changes
-    conn.commit()
-    conn.close()
-    return 'Created DB'
     
 def save_db(log):
     # sqlite db
-    conn = create_connection('server.db')
+    conn = create_connection()
     c = conn.cursor()
 
     # Create table
@@ -92,39 +79,81 @@ def save_db(log):
     conn.close()
     return 'Added log'
 
-def get_db():
+def save_status(running):
     # sqlite db
-    conn = create_connection('server.db')
+    conn = create_connection()
     c = conn.cursor()
 
     # Create table
-    sql = '''GET * FROM log'''
-    res = c.execute(sql)
+    sql = '''UPDATE status SET running = (?) WHERE id = 0'''
+    c.execute('UPDATE status SET running=? WHERE id=?', running)
+    # Save (commit) the changes
+    conn.commit()
+    conn.close()
+    return 'Updated status'
+
+def check_status():
+    # sqlite db
+    conn = create_connection()
+    c = conn.cursor()
+
+    # Create table
+    sql = '''SELECT running FROM status WHERE id = 0'''
+
+    c.execute(sql)
+    res = c.fetchone()[0]
     # Save (commit) the changes
     conn.commit()
     conn.close()
     return res
-# Create the database
-create_db()
 
-# Main page of the website
+
+def get_db():
+    # sqlite db
+    conn = create_connection()
+    c = conn.cursor()
+
+    # Create table
+    sql = '''SELECT * FROM log'''
+
+    c.execute(sql)
+    res = c.fetchall()
+    # Save (commit) the changes
+    conn.commit()
+    conn.close()
+    return res
+
+
+    # Main page of the website
 @application.route("/")
 def index():
     return 'Hello World!'
+
+@application.route('/cancel', methods=['GET'])
+def cancel():
+    save_status((0, 0))
+    return 'Canceled'
 
 # Sets the temperature of the water heater
 @application.route('/temperature/<mode>', methods=['GET', 'POST'])
 def temperature(mode):
     if request.method == 'GET':
         json = {
-            "c":  round(sensor.get_temperature(), 2),
+            "c":  round(sensor.get_temperature()),
             "f": round(sensor.get_temperature(W1ThermSensor.DEGREES_F), 2),
             "k": round(sensor.get_temperature(W1ThermSensor.KELVIN), 2)
         }
-        return str(json)
+        save_db((datetime.datetime.now(), request.path, request.remote_addr, str(json)))
+        return str(round(sensor.get_temperature()))
     else:
         if mode in modes:
-            return set_temperature(mode)
+            status = check_status()
+            if status == 1:
+                save_status((0, 0))
+            time.sleep(1)
+            run = set_temperature(mode)
+            save_status((0, 0))
+            return run
         else:
             json = {
                 "c":  round(sensor.get_temperature(), 2),
@@ -137,26 +166,32 @@ def temperature(mode):
 # Sets the time to keep the water heater heated
 @application.route('/heat/<mode>/<int:duration>', methods=['POST'])
 def heat(mode, duration):
+    status = check_status()
+    if status == 1:
+        save_status((0, 0))
+    time.sleep(1)
     if mode in modes:
         set_temperature(mode)
     else:
         return 'Temperature mode not found: ' + mode
+    
     start_time = time.time()
     end_time = time.time()
     flip_switch(1)
-    while (end_time - start_time < duration):
+    while (end_time - start_time < duration and check_status() == 1):
         set_temperature(mode)
         print(end_time - start_time)
         end_time = time.time()
         time.sleep(1)
     flip_switch(0)
     save_db((datetime.datetime.now(), request.path, request.remote_addr, 'Done'))
+    save_status((0, 0))
     return 'Done'
 
 @application.route('/stats', methods=['GET'])
 def stats():
     rows = get_db()
-    return 'Some crazy stats about the kettle that we don\'t have yet.'
+    return str(len(rows))
 
 @application.route('/switch/<value>', methods=['GET'])
 def switch(value):
@@ -169,9 +204,10 @@ def switch(value):
 def set_temperature(mode):
     print('Setting temperature mode to ' + mode + ' at ' + str(modes[mode]))
     temp = modes[mode]
+    save_status((1, 0))
     if (round(sensor.get_temperature(), 2) < temp):
         flip_switch(1)
-        while (round(sensor.get_temperature(), 2) < temp):
+        while (round(sensor.get_temperature(), 2) < temp and check_status() == 1):
             print(round(sensor.get_temperature(), 2))
             time.sleep(1)
         flip_switch(0)
@@ -181,17 +217,33 @@ def set_temperature(mode):
 
 def flip_switch(switch):
     if switch:
-        try:
+        try:     
+            GPIO.setup(27, GPIO.OUT)
             GPIO.output(27, GPIO.HIGH)
             time.sleep(5)
         except e:
             print(e)
     else:
         try:
+            GPIO.setup(27, GPIO.OUT)
             GPIO.output(27, GPIO.LOW)
             time.sleep(5)
         except:
             print("Some error")
 
+@application.route('/power', methods=['GET'])
+def power():
+    try:
+        GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        level = GPIO.input(27)
+        if level == 0:
+            flip_switch(1)
+            return '1'
+        else:
+            flip_switch(0)
+            return '0'
+    except e:
+        print(e)
+        return 'Dead'
 if __name__ == "__main__":
     serve(application, host='0.0.0.0', port=5000)
