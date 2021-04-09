@@ -3,14 +3,14 @@ This example defines a basic setup for BobTheKettleServer. BobTheKettleServer is
 
 ## API Functions
 
-### /temperature/<mode>
+### /temperature/{mode}
 * GET: Get the temperature from the water in the container. Returns temperature values as `{'c':float, 'f':float, 'k':float}`
 * POST: Set the temperature mode of the container. Modes choices are boil at 90C, hot at 60C, and warm at 30C.
-### /heat/<mode>/<duration>
+### /heat/<mode>/{duration}
 * POST: Set a temperature mode for a duration. Modes choices are boil at 90C, hot at 60C, and warm at 30C. Duration is in seconds.
 ### /stats
 * GET: Get all info saved to DB for the container. Rows include datetime, command, device, and response.
-### /switch/<value>
+### /switch/{value}
 * GET: Turns the device off if value is "off" and turns it on if value is "on".
 ### /power
 * GET: Turns device off if it is on and turns it on if it is off.
